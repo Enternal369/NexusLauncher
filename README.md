@@ -15,6 +15,8 @@ A command-line Minecraft launcher written in **Rust**.
 
 Nexus Launcher is designed to be lightweight and operates entirely from the terminal, avoiding the resource overhead of a graphical user interface. It handles asynchronous game asset downloads and automatically sets up the required Java environment to launch the game.
 
+NexusLauncher is an `unofficial` open-source launcher and is not affiliated with Mojang or Microsoft.
+
 ---
 
 ## ✨ Core Features
