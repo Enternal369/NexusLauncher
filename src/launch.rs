@@ -1,18 +1,17 @@
 // src/launch.rs
-use crate::version::models::VersionDetail;
-use crate::version::utils;
+use crate::cli;
 use crate::version::AnyError;
+use crate::version::models::VersionDetail;
+use crate::version::utils::{self, get_clients_dir};
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use crate::cli;
-
 
 pub fn start_game(
     detail: &VersionDetail,
     client_jar: &Path,
     libraries: Vec<PathBuf>,
     java_executable: &Path,
-    cli: &cli::Cli
+    cli: &cli::Cli,
 ) -> Result<(), AnyError> {
     tracing::info!("Assembling startup parameters...");
 
@@ -32,7 +31,7 @@ pub fn start_game(
     let assets_dir = mc_dir.join("assets");
 
     // Calculate the exclusive isolation directory for this version
-    let version_isolated_dir = mc_dir.join("versions").join(&detail.id);
+    let version_isolated_dir = get_clients_dir().join(&detail.id);
 
     // Ensure that the isolation directory exists (it is usually created when downloading client.jar, this is just a precaution here).
     if !version_isolated_dir.exists() {
@@ -41,7 +40,6 @@ pub fn start_game(
 
     // 3. Build and execute Java commands
     let mut cmd = Command::new(java_executable);
-
 
     // === A. JVM Runtime Parameters ===
     let max_memory = format!("-Xmx{}M", cli.max_memory);

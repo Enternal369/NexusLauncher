@@ -36,7 +36,9 @@ pub async fn download_and_verify(
 
     let pb = if false {
         let p = ProgressBar::new(total_size);
-        if let Ok(style) = ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({eta})") {
+        if let Ok(style) = ProgressStyle::with_template(
+            "{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({eta})",
+        ) {
             p.set_style(style.progress_chars("#>-"));
         }
         p.set_message(format!("Downloading {}", file_name));

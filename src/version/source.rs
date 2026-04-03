@@ -1,13 +1,13 @@
-use super::models::{VersionManifest, VersionDetail};
-use super::download;
-use super::utils;
-use tracing;
 use super::AnyError;
-use std::path::PathBuf;
+use super::download;
 use super::models::AssetIndexManifest;
-use tokio::fs;
+use super::models::{VersionDetail, VersionManifest};
+use super::utils;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use std::path::PathBuf;
+use tokio::fs;
 use tokio::task::JoinSet;
+use tracing;
 
 /// obtain_manifest
 pub async fn obtain_manifest() -> Result<VersionManifest, AnyError> {
@@ -24,7 +24,6 @@ pub async fn obtain_manifest() -> Result<VersionManifest, AnyError> {
     Ok(manifest)
 }
 
-
 /// fetch_version_detail
 pub async fn fetch_version_detail(url: &str) -> Result<VersionDetail, AnyError> {
     tracing::trace!("Fetching version detail from {}", url);
@@ -34,20 +33,25 @@ pub async fn fetch_version_detail(url: &str) -> Result<VersionDetail, AnyError> 
     Ok(detail)
 }
 
-
-
 pub async fn download_libraries(detail: &VersionDetail) -> Result<Vec<PathBuf>, AnyError> {
     tracing::info!("Start preparing the dependency library...");
-    
+
     let mp = MultiProgress::new();
-    
-    let tasks: Vec<_> = detail.libraries.iter()
-        .filter_map(|lib| lib.downloads.artifact.as_ref().map(|a| (lib.name.clone(), a.clone())))
+
+    let tasks: Vec<_> = detail
+        .libraries
+        .iter()
+        .filter_map(|lib| {
+            lib.downloads
+                .artifact
+                .as_ref()
+                .map(|a| (lib.name.clone(), a.clone()))
+        })
         .collect();
 
     let main_pb = mp.add(ProgressBar::new(tasks.len() as u64));
     main_pb.set_style(ProgressStyle::with_template(
-        " {spinner:.green} Overall progress: [{wide_bar:.green/white}] {pos}/{len} ({percent}%)"
+        " {spinner:.green} Overall progress: [{wide_bar:.green/white}] {pos}/{len} ({percent}%)",
     )?);
 
     let mut classpath_libs = Vec::new();
@@ -61,8 +65,8 @@ pub async fn download_libraries(detail: &VersionDetail) -> Result<Vec<PathBuf>, 
             let mp_clone = mp.clone();
             set.spawn(async move {
                 tracing::info!("Concurrent download dependencies: {}", name);
-                
-                let _ = mp_clone; 
+
+                let _ = mp_clone;
 
                 download::download_and_verify(&artifact.url, &local_path, &artifact.sha1).await
             });
@@ -72,14 +76,13 @@ pub async fn download_libraries(detail: &VersionDetail) -> Result<Vec<PathBuf>, 
     }
 
     while let Some(res) = set.join_next().await {
-        res??; 
+        res??;
         main_pb.inc(1);
     }
 
     main_pb.finish_with_message("All dependent libraries are ready");
     Ok(classpath_libs)
 }
-
 
 pub async fn download_assets(detail: &VersionDetail) -> Result<(), AnyError> {
     tracing::info!("Start processing the asset files...");
@@ -97,19 +100,20 @@ pub async fn download_assets(detail: &VersionDetail) -> Result<(), AnyError> {
             &detail.asset_index.url,
             &index_path,
             &detail.asset_index.sha1,
-        ).await?;
+        )
+        .await?;
     }
 
     // 2. Read and parse the Index
     let index_content = fs::read_to_string(&index_path).await?;
     let asset_manifest: AssetIndexManifest = serde_json::from_str(&index_content)?;
-    
+
     // 3. Prepare for concurrent downloads
     let mp = MultiProgress::new();
     let tasks = asset_manifest.objects;
     let main_pb = mp.add(ProgressBar::new(tasks.len() as u64));
     main_pb.set_style(ProgressStyle::with_template(
-        " {spinner:.yellow} Resource file: [{wide_bar:.yellow/white}] {pos}/{len} ({percent}%)"
+        " {spinner:.yellow} Resource file: [{wide_bar:.yellow/white}] {pos}/{len} ({percent}%)",
     )?);
 
     let mut set = JoinSet::new();
@@ -145,7 +149,7 @@ pub async fn download_assets(detail: &VersionDetail) -> Result<(), AnyError> {
 
     // Handle the last remaining tasks that haven't been completed
     while let Some(res) = set.join_next().await {
-        res??; 
+        res??;
         main_pb.inc(1);
     }
 

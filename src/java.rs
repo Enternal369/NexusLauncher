@@ -1,5 +1,6 @@
 // src/java.rs
 use crate::version::AnyError;
+use crate::version::utils::get_minecraft_dir;
 use futures_util::StreamExt;
 use indicatif::{ProgressBar, ProgressStyle};
 use regex::Regex;
@@ -148,14 +149,20 @@ pub async fn scan_local_java_environments(custom_scan_path: Option<&Path>) -> Ve
         add_if_new(info);
     }
 
-    // 3: Scan a specifically designated location (for example, the runtimes folder that comes with the launcher)
+    // 3: Scan the runtimes directory
+    let runtimes_dir = get_minecraft_dir().join("runtimes");
+    for info in scan_jvm_directory(&runtimes_dir).await {
+        add_if_new(info);
+    }
+
+    // 4: Scan a specifically designated location (for example, the runtimes folder that comes with the launcher)
     if let Some(scan_path) = custom_scan_path {
         for info in scan_jvm_directory(scan_path).await {
             add_if_new(info);
         }
     }
 
-    // 4: Arch Linux / General Linux default installation path
+    // 5: Arch Linux / General Linux default installation path
     let jvm_dir = Path::new("/usr/lib/jvm");
     for info in scan_jvm_directory(jvm_dir).await {
         add_if_new(info);

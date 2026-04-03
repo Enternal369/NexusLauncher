@@ -1,16 +1,15 @@
+mod cli;
 mod config;
 mod java;
 mod launch;
 mod version;
-mod cli;
 
+use clap::Parser;
 use std::path::PathBuf;
 use version::AnyError;
-use clap::Parser;
 
 #[tokio::main]
 async fn main() -> Result<(), AnyError> {
-
     let cli = cli::Cli::parse();
 
     tracing_subscriber::fmt()
@@ -22,7 +21,7 @@ async fn main() -> Result<(), AnyError> {
 
     tracing::info!("Nexus Launcher Starting...");
     version::utils::init_workspace()?;
-    
+
     // Print out the configuration we are using
     tracing::info!("Target Version: {}", cli.game_version);
     tracing::info!("Player Name: {}", cli.player_name);
@@ -40,8 +39,14 @@ async fn main() -> Result<(), AnyError> {
     let mut final_java_executable: Option<PathBuf> = None;
 
     // Check if we already have a valid cached path for this version
-    if let Some(cached_path) = launcher_config.get_valid_java(required_java_version).await {
-        tracing::info!("Using cached Java {}: {}", required_java_version, cached_path.display());
+    if let Some(cached_path) = launcher_config.get_valid_java(required_java_version).await
+        && !cli.force_scan
+    {
+        tracing::info!(
+            "Using cached Java {}: {}",
+            required_java_version,
+            cached_path.display()
+        );
         final_java_executable = Some(cached_path);
     } else {
         tracing::info!(
@@ -50,8 +55,7 @@ async fn main() -> Result<(), AnyError> {
         );
 
         // Scan local environments
-        let custom_runtime_dir = version::utils::get_minecraft_dir().join("runtimes");
-        let local_javas = java::scan_local_java_environments(Some(&custom_runtime_dir)).await;
+        let local_javas = java::scan_local_java_environments(None).await;
 
         let mut found_path = None;
         for j in local_javas {
@@ -74,37 +78,49 @@ async fn main() -> Result<(), AnyError> {
         }
 
         if found_path.is_none() {
-            tracing::warn!("Java {} not found locally. Initiating automatic download...", required_java_version);
-            
+            tracing::warn!(
+                "Java {} not found locally. Initiating automatic download...",
+                required_java_version
+            );
+
             // 1. Download and extract Java into the runtimes folder
-            let new_java_dir = java::download_java(required_java_version, &custom_runtime_dir).await?;
-            
+            let custom_runtime_dir = version::utils::get_minecraft_dir().join("runtimes");
+            let new_java_dir =
+                java::download_java(required_java_version, &custom_runtime_dir).await?;
+
             // 2. Rescan the newly downloaded directory to dynamically find the exact bin/java path
             let new_javas = java::scan_local_java_environments(Some(&new_java_dir)).await;
-            
-            if let Some(j) = new_javas.into_iter().find(|j| j.major_version == required_java_version) {
+
+            if let Some(j) = new_javas
+                .into_iter()
+                .find(|j| j.major_version == required_java_version)
+            {
                 found_path = Some(j.path);
             } else {
-                return Err(format!("Failed to locate Java executable after downloading version {}", required_java_version).into());
+                return Err(format!(
+                    "Failed to locate Java executable after downloading version {}",
+                    required_java_version
+                )
+                .into());
             }
         }
         // ============================
 
         // Update the cache and save to the TOML file
         if let Some(verified_path) = found_path {
-            launcher_config.java_paths.insert(required_java_version, verified_path.clone());
+            launcher_config
+                .java_paths
+                .insert(required_java_version, verified_path.clone());
             launcher_config.save().await?;
             final_java_executable = Some(verified_path);
         }
     }
 
-
     if let Some(v_info) = manifest.versions.iter().find(|v| v.id == *target_version) {
         tracing::info!("Parsing data of {}...", target_version);
         let detail = version::source::fetch_version_detail(&v_info.url).await?;
 
-        let client_jar_path = version::utils::get_minecraft_dir()
-            .join("versions")
+        let client_jar_path = version::utils::get_clients_dir()
             .join(target_version)
             .join(format!("{}.jar", target_version));
 

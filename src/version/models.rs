@@ -24,9 +24,6 @@ pub struct Version {
     pub release_time: String,
 }
 
-
-
-
 #[derive(Debug, Deserialize)]
 pub struct VersionDetail {
     pub id: String,
@@ -49,7 +46,7 @@ pub struct VersionDetail {
     pub release_time: String,
     pub time: String,
     #[serde(rename = "type")]
-    pub type_: String
+    pub type_: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -62,7 +59,7 @@ pub struct Client {
     pub argument: String,
     pub file: File,
     #[serde(rename = "type")]
-    pub type_: String
+    pub type_: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -70,7 +67,7 @@ pub struct File {
     pub id: String,
     pub sha1: String,
     pub size: u64,
-    pub url: String
+    pub url: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -109,12 +106,10 @@ pub struct Library {
     pub downloads: LibDownloads,
 }
 
-
 #[derive(Debug, Deserialize, Clone)]
 pub struct LibDownloads {
     pub artifact: Option<Artifact>,
 }
-
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Artifact {
@@ -123,10 +118,6 @@ pub struct Artifact {
     pub size: u64,
     pub url: String,
 }
-
-
-
-
 
 #[derive(Debug, Deserialize)]
 pub struct AssetIndexManifest {
