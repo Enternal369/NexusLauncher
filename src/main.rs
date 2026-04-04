@@ -49,7 +49,7 @@ async fn handle_launch(args: &LaunchArgs) -> Result<(), AnyError> {
     let required_java_version = 17;
 
     // Load the launcher config
-    let mut launcher_config = config::LauncherConfig::load().await;
+    let mut launcher_config = LauncherConfig::load().await;
 
     #[allow(unused_assignments)]
     let mut final_java_executable: Option<PathBuf> = None;

@@ -1,5 +1,4 @@
-// src/config.rs
-
+use super::models::LauncherConfig;
 use crate::java;
 use crate::version::AnyError;
 use crate::version::utils;
@@ -7,14 +6,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use tokio::fs;
-
-/// The structure representing the launcher's persistent settings.
-#[derive(Debug, Serialize, Deserialize, Default)]
-pub struct LauncherConfig {
-    /// A mapping from Java major version to its executable path
-    /// e.g., 17 = "/usr/lib/jvm/java-17-openjdk/bin/java"
-    pub java_paths: HashMap<u32, PathBuf>,
-}
 
 impl LauncherConfig {
     /// Gets the path to the configuration file (e.g., ~/.minecraft/nexus_config.toml)
