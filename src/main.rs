@@ -12,8 +12,7 @@ use std::path::PathBuf;
 use version::AnyError;
 
 use crate::{
-    cli::{AuthArgs, JavaArgs, LaunchArgs},
-    java::download_java,
+    cli::{AuthArgs, JavaArgs, LaunchArgs, LoaderArgs, ModeArgs}, config::models::LauncherConfig, java::download_java, launch::launcher::start_game, loader::fabric::{get_fabric_profile, get_latest_loader, install_fabric_libraries}, mode::models::search_mods
 };
 
 #[tokio::main]
@@ -159,13 +158,13 @@ async fn handle_launch(args: &LaunchArgs) -> Result<(), AnyError> {
         tracing::info!("Core Path: {:?}", client_jar_path);
         tracing::info!("\nAll core components of {} are ready!", target_version);
 
-        // launch::start_game(
-        //     &detail,
-        //     &client_jar_path,
-        //     classpath_libs,
-        //     final_java_executable.as_ref().unwrap(),
-        //     &cli,
-        // )?;
+        start_game(
+            &detail,
+            &client_jar_path,
+            classpath_libs,
+            final_java_executable.as_ref().unwrap(),
+            args,
+        )?;
     }
 
     Ok(())

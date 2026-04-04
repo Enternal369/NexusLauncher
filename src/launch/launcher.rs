@@ -1,4 +1,5 @@
 // src/launch.rs
+
 use crate::cli::LaunchArgs;
 use crate::version::AnyError;
 use crate::version::models::VersionDetail;
@@ -11,7 +12,7 @@ pub fn start_game(
     client_jar: &Path,
     libraries: Vec<PathBuf>,
     java_executable: &Path,
-    cli: LaunchArgs,
+    cli: &LaunchArgs,
 ) -> Result<(), AnyError> {
     tracing::info!("Assembling startup parameters...");
 
