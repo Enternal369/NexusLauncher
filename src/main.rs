@@ -151,6 +151,8 @@ async fn handle_launch(args: &LaunchArgs) -> Result<(), AnyError> {
                 detail.downloads.client.sha1.as_str(),
             )
             .await?;
+
+
         }
         let classpath_libs = version::source::download_libraries(&detail).await?;
 
@@ -208,10 +210,10 @@ async fn handle_auth(args: &AuthArgs) -> Result<(), AnyError> {
             auth::utils::poll_for_ms_token(&device_resp.device_code, device_resp.interval).await?;
         tracing::info!("✅ Microsoft authentication successful");
 
-        // 3. 换取 Xbox Token
+        // 3. Obtain Xbox Token
         let (xbox_token, uhs) = auth::utils::get_xbox_token(&ms_token.access_token).await?;
 
-        // 4. 换取 XSTS Token
+        // 4. Obtain XSTS Token
         let xsts_token = auth::utils::get_xsts_token(&xbox_token).await?;
 
         // 5. obtain Minecraft token
