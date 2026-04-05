@@ -12,6 +12,10 @@ use std::path::PathBuf;
 use version::AnyError;
 
 use crate::{
+    auth::{
+        storage::get_refresh_token,
+        utils::{refresh_ms_token, silent_login},
+    },
     cli::{AuthArgs, JavaArgs, LaunchArgs, LoaderArgs, ModeArgs},
     config::models::LauncherConfig,
     java::download_java,
@@ -61,7 +65,6 @@ async fn handle_launch(args: &LaunchArgs) -> Result<(), AnyError> {
 
     #[allow(unused_assignments)]
     let mut final_java_executable: Option<PathBuf> = None;
-
     // Check if we already have a valid cached path for this version
     if let Some(cached_path) = launcher_config.get_valid_java(required_java_version).await
         && !args.force_scan
@@ -163,12 +166,18 @@ async fn handle_launch(args: &LaunchArgs) -> Result<(), AnyError> {
         tracing::info!("Core Path: {:?}", client_jar_path);
         tracing::info!("\nAll core components of {} are ready!", target_version);
 
+        let content = LauncherConfig::load().await;
+        let uuid = content.user_profile.uuid;
+        let access_token = silent_login(&uuid).await?;
+        // let access_token = "offline_token".to_string();
+
         start_game(
             &detail,
             &client_jar_path,
             classpath_libs,
             final_java_executable.as_ref().unwrap(),
             args,
+            &access_token,
         )?;
     }
 
@@ -249,7 +258,7 @@ async fn handle_auth(args: &AuthArgs) -> Result<(), AnyError> {
 
         if let Some(refresh_token) = ms_token.refresh_token {
             // Use the player's UUID or nickname as the key
-            auth::storage::save_token(&profile.id, &refresh_token)?;
+            auth::storage::save_refresh_token(&profile.id, &refresh_token)?;
             tracing::info!(
                 "✅ The security credentials have been encrypted and stored in the system credential manager."
             );
@@ -258,20 +267,12 @@ async fn handle_auth(args: &AuthArgs) -> Result<(), AnyError> {
         let mut config = LauncherConfig::load().await;
         config.user_profile.username = profile.name;
         config.user_profile.uuid = profile.id;
+
         config.save().await?;
         tracing::info!("✅ Username has been saved in the launcher config.");
     }
 
-    if let Some(name) = &args.logout {
-        match auth::storage::delete_token(name) {
-            Ok(()) => {
-                tracing::info!("✅ Successfully logged out of {}", name);
-            }
-            Err(e) => {
-                tracing::error!("❌ Failed to log out of {}: {}", name, e);
-            }
-        }
-    }
+    if let Some(name) = &args.logout {}
 
     Ok(())
 }

@@ -1,9 +1,13 @@
 // src/launch.rs
 
+use crate::auth::storage::get_refresh_token;
+use crate::auth::utils::refresh_ms_token;
 use crate::cli::LaunchArgs;
+use crate::config::models::LauncherConfig;
 use crate::version::AnyError;
 use crate::version::models::VersionDetail;
 use crate::version::utils::{self, get_clients_dir};
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -13,6 +17,7 @@ pub fn start_game(
     libraries: Vec<PathBuf>,
     java_executable: &Path,
     cli: &LaunchArgs,
+    access_token: &str,
 ) -> Result<(), AnyError> {
     tracing::info!("Assembling startup parameters...");
 
@@ -51,7 +56,14 @@ pub fn start_game(
     cmd.arg(&detail.main_class);
 
     // === B. Core Game Parameters ===
-    cmd.arg("--username").arg(cli.player_name.clone());
+    let path = LauncherConfig::get_config_path();
+    let content = fs::read_to_string(path)?;
+    let config: LauncherConfig = toml::from_str(&content)?;
+
+    let username = config.user_profile.username;
+    let uuid = config.user_profile.uuid;
+
+    cmd.arg("--username").arg(username);
     cmd.arg("--version").arg(cli.game_version.clone());
 
     // Point gameDir to the version-specific isolated directory!
@@ -61,9 +73,8 @@ pub fn start_game(
     cmd.arg("--assetsDir").arg(&assets_dir);
 
     cmd.arg("--assetIndex").arg(&detail.asset_index.id);
-    cmd.arg("--uuid")
-        .arg("00000000-0000-0000-0000-000000000000");
-    cmd.arg("--accessToken").arg("offline_token");
+    cmd.arg("--uuid").arg(uuid);
+    cmd.arg("--accessToken").arg(access_token);
     cmd.arg("--userType").arg("mojang");
     cmd.arg("--versionType").arg("release");
     tracing::info!("Execute command: {:?}", cmd);

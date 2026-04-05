@@ -1,5 +1,8 @@
 use super::models::{CLIENT_ID, DeviceCodeResponse, MicrosoftToken};
-use crate::version::AnyError;
+use crate::{
+    auth::storage::{get_refresh_token, save_refresh_token},
+    version::AnyError,
+};
 use reqwest::Client;
 
 pub async fn get_device_code() -> Result<DeviceCodeResponse, AnyError> {
@@ -170,6 +173,9 @@ pub async fn get_minecraft_profile(
     }
 
     let profile: super::models::MinecraftProfile = res.json().await?;
+
+    tracing::info!("Minecraft Profile: {:#?}", profile);
+
     Ok(profile)
 }
 
@@ -195,4 +201,30 @@ pub async fn refresh_ms_token(refresh_token: &str) -> Result<MicrosoftToken, Any
 
     let new_token: MicrosoftToken = serde_json::from_str(&text)?;
     Ok(new_token)
+}
+
+/// Login with saved refresh token
+/// must be called with a valid refresh token
+pub async fn silent_login(uuid: &str) -> Result<String, AnyError> {
+    // Get the locally encrypted refresh token
+    let saved_rt = get_refresh_token(uuid)?;
+
+    // Refresh the Microsoft token
+    let ms_token = refresh_ms_token(&saved_rt).await?;
+
+    if let Some(new_rt) = &ms_token.refresh_token {
+        save_refresh_token(uuid, new_rt)?;
+        tracing::info!("✅ The security credentials have been encrypted and updated.");
+    }
+
+    // Get the Xbox token
+    let (xbox_token, uhs) = get_xbox_token(&ms_token.access_token).await?;
+
+    // Convert the Xbox token to an XSTS token
+    let xsts_token = get_xsts_token(&xbox_token).await?;
+
+    // Finally, use the XSTS token to get the Minecraft token
+    let mc_token = get_minecraft_token(&xsts_token, &uhs).await?;
+
+    Ok(mc_token)
 }
