@@ -237,22 +237,48 @@ pub async fn download_java(major_version: u32, runtimes_dir: &Path) -> Result<Pa
 
     // Extraction is CPU-bound and blocking, so it must run in spawn_blocking
     tokio::task::spawn_blocking(move || -> Result<(), std::io::Error> {
-        use flate2::read::GzDecoder;
-        use std::fs::File;
-        use tar::Archive;
+        if cfg!(target_os = "windows") {
+            // ===== Windows: Extract zip =====
+            use std::fs::{self, File};
+            use std::io::copy;
+            use zip::ZipArchive;
 
-        let tar_gz = File::open(&temp_archive_path)?;
-        let tar = GzDecoder::new(tar_gz);
-        let mut archive = Archive::new(tar);
+            let file = File::open(&temp_archive_path)?;
+            let mut archive = ZipArchive::new(file)?;
 
-        // Unpack directly into the target directory
-        archive.unpack(&target_dir_clone)?;
+            for i in 0..archive.len() {
+                let mut entry = archive.by_index(i)?;
+                let outpath = target_dir_clone.join(entry.mangled_name());
 
-        // Clean up the temporary archive file
+                if entry.name().ends_with('/') {
+                    fs::create_dir_all(&outpath)?;
+                } else {
+                    if let Some(parent) = outpath.parent() {
+                        fs::create_dir_all(parent)?;
+                    }
+
+                    let mut outfile = File::create(&outpath)?;
+                    copy(&mut entry, &mut outfile)?;
+                }
+            }
+        } else {
+            // ===== Linux: Extract tar=====
+            use flate2::read::GzDecoder;
+            use std::fs::File;
+            use tar::Archive;
+
+            let tar_gz = File::open(&temp_archive_path)?;
+            let tar = GzDecoder::new(tar_gz);
+            let mut archive = Archive::new(tar);
+
+            archive.unpack(&target_dir_clone)?;
+        }
+
+        // ✅ 原有清理逻辑保留
         std::fs::remove_file(&temp_archive_path)?;
         Ok(())
     })
-    .await??;
+        .await??;
 
     tracing::info!(
         "Java {} successfully installed at {}",
