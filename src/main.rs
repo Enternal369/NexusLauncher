@@ -1,5 +1,4 @@
 mod auth;
-
 mod cli;
 mod config;
 mod java;
@@ -14,6 +13,7 @@ use version::AnyError;
 
 use crate::config::config::Config;
 use crate::config::models::LaunchConfig;
+use crate::launch::models::{LaunchContext, UserContext};
 use crate::{
     auth::utils::silent_login,
     cli::{AuthArgs, JavaArgs, LaunchArgs, LoaderArgs, ModeArgs, SetArgs},
@@ -57,7 +57,6 @@ async fn handle_launch(args: &LaunchArgs) -> Result<(), AnyError> {
     tracing::info!("Allocated Memory: {} MB", args.max_memory);
 
     let manifest = version::source::obtain_manifest().await?;
-
     let target_version = &args.game_version;
     let required_java_version = 17;
 
@@ -168,19 +167,40 @@ async fn handle_launch(args: &LaunchArgs) -> Result<(), AnyError> {
         tracing::info!("Core Path: {:?}", client_jar_path);
         tracing::info!("\nAll core components of {} are ready!", target_version);
 
-        let content = UserConfig::load().await;
-        let uuid = content.user_profile.online.uuid;
-        let access_token = silent_login(&uuid).await?;
-        // let access_token = "offline_token".to_string();
+        let access_token;
+        let username;
+        let uuid;
+        if launcher_config.offline {
+            access_token = "offline_token".to_string();
+            username = user_config.user_profile.offline.username.clone();
+            uuid = user_config.user_profile.offline.uuid.clone();
 
-        start_game(
-            &detail,
-            &client_jar_path,
-            classpath_libs,
-            final_java_executable.as_ref().unwrap(),
-            args,
-            &access_token,
-        )?;
+            tracing::info!("offline name: {}", username);
+            tracing::info!("offline uuid: {}", uuid);
+        } else {
+            username = user_config.user_profile.online.username.clone();
+            uuid = user_config.user_profile.online.uuid.clone();
+            access_token = silent_login(&uuid).await?;
+        }
+
+        let mut launch_context = LaunchContext {
+            version_id: args.game_version.clone(),
+            offline: launcher_config.offline,
+            java_path: final_java_executable,
+            core_jar: client_jar_path,
+            user: UserContext {
+                username: username,
+                uuid: uuid,
+                access_token: Some(access_token),
+            },
+            max_memory: Some(args.max_memory),
+
+            main_class: detail.main_class.clone(),
+            libraries: classpath_libs,
+            asset_index_id: detail.asset_index.id.clone(),
+        };
+
+        start_game(launch_context)?;
     }
 
     Ok(())
@@ -325,13 +345,18 @@ async fn handle_loader(args: &LoaderArgs) -> Result<(), AnyError> {
 
 async fn handle_set(args: &SetArgs) -> Result<(), AnyError> {
     let mut config = UserConfig::load().await;
+    let mut launch_config = LaunchConfig::load().await;
 
     if let Some(username) = args.name.as_ref() {
-        config.user_profile.online.username = username.clone();
+        config.user_profile.offline.username = username.clone();
     }
 
     if let Some(uuid) = args.uuid.as_ref() {
-        config.user_profile.online.uuid = uuid.clone();
+        config.user_profile.offline.uuid = uuid.clone();
+    }
+
+    if let Some(judge) = args.offline {
+        launch_config.offline = judge;
     }
 
     if args.show {
@@ -339,5 +364,6 @@ async fn handle_set(args: &SetArgs) -> Result<(), AnyError> {
     }
 
     config.save().await?;
+    launch_config.save().await?;
     Ok(())
 }

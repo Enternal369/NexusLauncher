@@ -1,31 +1,20 @@
-use crate::cli::LaunchArgs;
-use crate::config::config::Config;
-use crate::config::models::UserConfig;
+use crate::launch::models::LaunchContext;
 use crate::version::AnyError;
-use crate::version::models::VersionDetail;
 use crate::version::utils::{self, get_clients_dir};
-use std::fs;
-use std::path::{Path, PathBuf};
 use std::process::Command;
 
-pub fn start_game(
-    detail: &VersionDetail,
-    client_jar: &Path,
-    libraries: Vec<PathBuf>,
-    java_executable: &Path,
-    cli: &LaunchArgs,
-    access_token: &str,
-) -> Result<(), AnyError> {
+pub fn start_game(launch_context: LaunchContext) -> Result<(), AnyError> {
     tracing::info!("Assembling startup parameters...");
 
     // 1. Build the Classpath (on Linux, you must use a colon : to connect)
-    let mut cp_paths: Vec<String> = libraries
+    let mut cp_paths: Vec<String> = launch_context
+        .libraries
         .into_iter()
         .map(|p| p.to_string_lossy().to_string())
         .collect();
 
     // Also add the game's core (client.jar) to the Classpath
-    cp_paths.push(client_jar.to_string_lossy().to_string());
+    cp_paths.push(launch_context.core_jar.to_string_lossy().to_string());
 
     let classpath = cp_paths.join(":");
 
@@ -34,7 +23,7 @@ pub fn start_game(
     let assets_dir = mc_dir.join("assets");
 
     // Calculate the exclusive isolation directory for this version
-    let version_isolated_dir = get_clients_dir().join(&detail.id);
+    let version_isolated_dir = get_clients_dir().join(&launch_context.version_id);
 
     // Ensure that the isolation directory exists (it is usually created when downloading client.jar, this is just a precaution here).
     if !version_isolated_dir.exists() {
@@ -42,26 +31,26 @@ pub fn start_game(
     }
 
     // 3. Build and execute Java commands
-    let mut cmd = Command::new(java_executable);
+    if launch_context.java_path.is_none() {
+        tracing::error!("Java executable not found");
+        return Err("Java executable not found".into());
+    }
+    let mut cmd = Command::new(launch_context.java_path.unwrap());
 
     // === A. JVM Runtime Parameters ===
-    let max_memory = format!("-Xmx{}M", cli.max_memory);
+    if let Some(max_memory) = launch_context.max_memory {
+        let max_memory = format!("-Xmx{}M", max_memory);
+        cmd.arg(max_memory);
+    }
 
-    cmd.arg(max_memory);
     cmd.arg("-XX:+UseG1GC");
     cmd.arg("-cp").arg(classpath);
-    cmd.arg(&detail.main_class);
+    cmd.arg(launch_context.main_class);
 
     // === B. Core Game Parameters ===
-    let path = UserConfig::get_config_path();
-    let content = fs::read_to_string(path)?;
-    let config: UserConfig = toml::from_str(&content)?;
 
-    let username = &config.user_profile.online.username;
-    let uuid = &config.user_profile.online.username;
-
-    cmd.arg("--username").arg(username);
-    cmd.arg("--version").arg(cli.game_version.clone());
+    cmd.arg("--username").arg(launch_context.user.username);
+    cmd.arg("--version").arg(launch_context.version_id);
 
     // Point gameDir to the version-specific isolated directory!
     cmd.arg("--gameDir").arg(&version_isolated_dir);
@@ -69,9 +58,13 @@ pub fn start_game(
     // Keep assetsDir unchanged and continue using the shared global resource library
     cmd.arg("--assetsDir").arg(&assets_dir);
 
-    cmd.arg("--assetIndex").arg(&detail.asset_index.id);
-    cmd.arg("--uuid").arg(uuid);
-    cmd.arg("--accessToken").arg(access_token);
+    cmd.arg("--assetIndex").arg(launch_context.asset_index_id);
+    cmd.arg("--uuid").arg(launch_context.user.uuid);
+
+    if let Some(access_token) = &launch_context.user.access_token {
+        cmd.arg("--accessToken").arg(access_token);
+    }
+
     cmd.arg("--userType").arg("mojang");
     cmd.arg("--versionType").arg("release");
 

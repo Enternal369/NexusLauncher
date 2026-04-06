@@ -1,14 +1,50 @@
 // src/launch/models.rs
-use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct LaunchContext {
-    pub version_id: String,      // such as "1.20.1-fabric"
-    pub java_path: PathBuf,      // Path to the verified Java executable file
-    pub main_class: String, // The final main class (provided by the original version or the Loader)
-    pub classpath: Vec<PathBuf>, // Complete list of classpaths (original library + Fabric library + core JAR)
-    pub game_args: Vec<String>,  // Game launch parameters
-    pub jvm_args: Vec<String>,   // JVM Memory and Optimization Parameters
-    pub work_dir: PathBuf,       // The game's installation directory (instance root directory)
+    pub version_id: String,         // such as "1.20.1-fabric"
+    pub java_path: Option<PathBuf>, // Path to the verified Java executable file
+    pub core_jar: PathBuf,          // Path to the original version's core jar
+    pub offline: bool,              // Whether the user is offline
+    pub user: UserContext,
+    pub max_memory: Option<u32>,
+
+    // The Classpath and the Main Class and other parameters
+    pub main_class: String,
+    pub libraries: Vec<PathBuf>,
+    pub asset_index_id: String,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct UserContext {
+    pub username: String,
+    pub uuid: String,
+    pub access_token: Option<String>, // The access token for authentication
+}
+
+impl LaunchContext {
+    pub fn new() -> LaunchContext {
+        LaunchContext {
+            max_memory: None,
+            version_id: String::new(),
+            java_path: None,
+            core_jar: PathBuf::new(),
+            offline: false,
+            user: UserContext::new(),
+            main_class: String::new(),
+            libraries: Vec::new(),
+            asset_index_id: String::new(),
+        }
+    }
+}
+
+impl UserContext {
+    pub fn new() -> UserContext {
+        UserContext {
+            username: String::new(),
+            uuid: String::new(),
+            access_token: None,
+        }
+    }
 }
